@@ -17,4 +17,7 @@ end
 
 group :development, :test do
   gem "simplecov"
+
+  gem 'pry'
+  gem 'pry-nav'
 end

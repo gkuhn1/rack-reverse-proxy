@@ -16,7 +16,9 @@ module RackReverseProxy
         :preserve_encoding => false,
         :x_forwarded_headers => true,
         :matching => :all,
-        :replace_response_host => false
+        :replace_response_host => false,
+        :cache_options => {},
+        :cache => false
       }
       instance_eval(&b) if block_given?
     end
@@ -28,7 +30,7 @@ module RackReverseProxy
     private
 
     def reverse_proxy_options(options)
-      @global_options = options
+      @global_options.merge!(options)
     end
 
     def reverse_proxy(rule, url = nil, opts = {})

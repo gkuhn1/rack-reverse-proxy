@@ -12,6 +12,7 @@ module RackReverseProxy
       @env = env
       @global_options = global_options
       @rules = rules
+      @cache = global_options[:cache] ? Cache::Redis.new(global_options[:cache_options]) : nil
       @response_builder_klass = response_builder_klass
     end
 
@@ -23,7 +24,7 @@ module RackReverseProxy
 
     private
 
-    attr_reader :app, :env, :global_options, :rules, :response_builder_klass
+    attr_reader :app, :env, :global_options, :rules, :response_builder_klass, :cache
 
     def new_relic?
       global_options[:newrelic_instrumentation]
@@ -148,6 +149,23 @@ module RackReverseProxy
       ).fetch
     end
 
+    def target_response_cached
+      @_target_response_cached ||= _target_response_cached
+    end
+
+    def _target_response_cached
+      response = cache.get(cache.gen_key(uri))
+      if response.nil?
+        target_response
+        if @_target_response.status == 200
+          body = @_target_response.to_s
+          response = {status: @_target_response.status, body: body}
+          cache.set(cache.gen_key(uri), response)
+        end
+      end
+      response
+    end
+
     def response_headers
       @_response_headers ||= build_response_headers
     end
@@ -196,8 +214,16 @@ module RackReverseProxy
       replace_location_header
     end
 
+    def rack_response_cached
+      [target_response_cached[:status], response_headers, [target_response_cached[:body]]]
+    end
+
     def rack_response
-      [target_response.status, response_headers, target_response.body]
+      if cache
+        rack_response_cached
+      else
+        [target_response.status, response_headers, target_response.body]
+      end
     end
 
     def proxy
