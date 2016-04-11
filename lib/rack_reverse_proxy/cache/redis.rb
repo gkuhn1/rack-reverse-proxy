@@ -14,6 +14,8 @@ module RackReverseProxy
         @client = ::Redis.new(url: options[:url])
       end
 
+      attr_reader :client
+
       def get(key)
         result = @client.get(key)
         return YAML.load(result) unless result.nil?
