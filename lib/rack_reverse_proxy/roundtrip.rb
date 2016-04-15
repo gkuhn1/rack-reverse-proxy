@@ -220,7 +220,11 @@ module RackReverseProxy
 
     def rack_response
       if cache
-        rack_response_cached
+        begin
+          rack_response_cached
+        rescue
+          [target_response.status, response_headers, target_response.body]
+        end
       else
         [target_response.status, response_headers, target_response.body]
       end

@@ -300,30 +300,35 @@ RSpec.describe Rack::ReverseProxy do
     describe "with preserve response host turned on" do
       def app
         Rack::ReverseProxy.new(dummy_app) do
-          reverse_proxy_options preserve_host: true,
-                                        cache: true,
-                                cache_options: {prefix: 'prefix.'}
-          reverse_proxy "/test", "http://example.com/"
+          reverse_proxy "/test", "http://example.com/", :replace_response_host => true
         end
       end
 
-      it "redis class should receive get and set" do
-        stub_request(:get, "http://example.com/test").to_return(body: "Cached App")
-        expect_any_instance_of(RackReverseProxy::Cache::Redis).to receive(:get).with("prefix.http___example_com_test").once
-        expect_any_instance_of(RackReverseProxy::Cache::Redis).to receive(:set).with("prefix.http___example_com_test", {status: 200, body: "Cached App"}).once
-        get "/test"
-        expect(last_response.body).to eq("Cached App")
+      it "replaces the location response header" do
+        stub_request(:get, "http://example.com/test/stuff").to_return(
+          :headers => { "location" => "http://test.com/bar" }
+        )
+        get "http://example.com/test/stuff"
+        expect(last_response.headers["location"]).to eq("http://example.com/bar")
       end
 
-
-      it "should get response from cache" do
-        stub_request(:get, "http://example.com/test").to_return(body: "Cached App")
-        expect_any_instance_of(RackReverseProxy::Cache::Redis).to receive(:get).with("prefix.http___example_com_test").and_return({status: 200, body: "Cached App"})
-        expect_any_instance_of(RackReverseProxy::Cache::Redis).not_to receive(:set)
-        get "/test"
-        expect(last_response.body).to eq("Cached App")
+      it "keeps the port of the location" do
+        stub_request(:get, "http://example.com/test/stuff").to_return(
+          :headers => { "location" => "http://test.com/bar" }
+        )
+        get "http://example.com:3000/test/stuff"
+        expect(last_response.headers["location"]).to eq("http://example.com:3000/bar")
       end
 
+      it "doesn't keep the port when it's default for the protocol" do
+        # webmock doesn't allow to stub an https URI, but this is enough to
+        # reply to the https code path
+        stub_request(:get, "http://example.com/test/stuff").to_return(
+          :headers => { "location" => "http://test.com/bar" }
+        )
+        get "https://example.com/test/stuff"
+        expect(last_response.headers["location"]).to eq("https://example.com/bar")
+      end
     end
 
     describe "with ambiguous routes and all matching" do
@@ -636,6 +641,43 @@ RSpec.describe Rack::ReverseProxy do
     end
 
     describe "with cache true" do
+      def app
+        Rack::ReverseProxy.new(dummy_app) do
+          reverse_proxy_options preserve_host: true,
+                                        cache: true,
+                                cache_options: {prefix: 'prefix.'}
+          reverse_proxy "/test", "http://example.com/"
+        end
+      end
+
+      it "redis class should receive get and set" do
+        stub_request(:get, "http://example.com/test").to_return(body: "Cached App")
+        expect_any_instance_of(RackReverseProxy::Cache::Redis).to receive(:get).with("prefix.http___example_com_test").once
+        expect_any_instance_of(RackReverseProxy::Cache::Redis).to receive(:set).with("prefix.http___example_com_test", {status: 200, body: "Cached App"}).once
+        get "/test"
+        expect(last_response.body).to eq("Cached App")
+      end
+
+
+      it "should get response from cache" do
+        stub_request(:get, "http://example.com/test").to_return(body: "Dummy App")
+        expect_any_instance_of(RackReverseProxy::Cache::Redis).to receive(:get).with("prefix.http___example_com_test").and_return({status: 200, body: "Cached App"})
+        expect_any_instance_of(RackReverseProxy::Cache::Redis).not_to receive(:set)
+        get "/test"
+        expect(last_response.body).to eq("Cached App")
+      end
+
+      context "with error in cache" do
+        it "should fallback to backend if an error happens" do
+          stub_request(:get, "http://example.com/test").to_return(body: "Cached App")
+          expect_any_instance_of(RackReverseProxy::Cache::Redis).to receive(:get).with("prefix.http___example_com_test") do
+            raise YAML::Exception.new
+          end
+          get "/test"
+          expect(last_response.body).to eq("Cached App")
+        end
+      end
+
     end
 
   end

@@ -1,4 +1,7 @@
 require "spec_helper"
+require "redis"
+require "redis-store"
+
 
 RSpec.describe RackReverseProxy::Cache::Redis do
 
@@ -34,5 +37,26 @@ RSpec.describe RackReverseProxy::Cache::Redis do
     end
   end
 
+  context "with connection pool" do
+
+    let(:subject) { described_class.new(pool: ::ConnectionPool.new { ::Redis.new }) }
+
+    it "should not initialize a new Redis store" do
+      expect(::Redis::Store::Factory).not_to receive(:create)
+      subject.get("test_key")
+    end
+  end
+
+  context "with connection pool options" do
+
+    let(:options) { {pool_size: 2, pool_timeout: 10} }
+    let(:subject) { described_class.new(options) }
+
+    it "should initialize a ConnectionPool with options" do
+      expect(::ConnectionPool).to receive(:new).with({size: 2, timeout: 10}).and_call_original
+      subject.get("test_key")
+    end
+
+  end
 
 end
