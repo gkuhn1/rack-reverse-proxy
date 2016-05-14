@@ -18,7 +18,7 @@ RSpec.describe RackReverseProxy::Cache::Redis do
     it "should return cached response if it exists" do
       subject.set("test_key", {test: 1, test2: 2})
       expect(subject.get("test_key")).to eq({test: 1, test2: 2})
-      expect(subject.client.get("test_key")).to eq("---\n:test: 1\n:test2: 2\n")
+      expect(subject.client.get("test_key")).to eq(Zlib::Deflate.deflate("---\n:test: 1\n:test2: 2\n"))
     end
 
   end
@@ -26,7 +26,7 @@ RSpec.describe RackReverseProxy::Cache::Redis do
   describe "#set" do
     it "should set cache with assigned key" do
       subject.set("test_key", {test: 1, test2: 2})
-      expect(subject.client.get("test_key")).to eq("---\n:test: 1\n:test2: 2\n")
+      expect(subject.client.get("test_key")).to eq(Zlib::Deflate.deflate("---\n:test: 1\n:test2: 2\n"))
     end
 
   end

@@ -2,6 +2,7 @@ require "redis"
 require "redis-store"
 require "connection_pool"
 require "yaml"
+require "zlib"
 
 module RackReverseProxy
   module Cache
@@ -39,12 +40,13 @@ module RackReverseProxy
 
       def get(key)
         result = with { |c| c.get(key) }
-        return YAML.load(result) unless result.nil?
+        return YAML.load(Zlib::Inflate.inflate(result)) unless result.nil?
         result
       end
 
       def set(key, value)
-        with { |c| c.set(key, YAML.dump(value), timeout: options[:timeout]) }
+        yml_data = YAML.dump(value)
+        with { |c| c.set(key, Zlib::Deflate.deflate(yml_data), timeout: options[:timeout]) }
       end
 
       def with(&block)
