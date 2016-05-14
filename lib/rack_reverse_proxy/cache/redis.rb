@@ -46,7 +46,10 @@ module RackReverseProxy
 
       def set(key, value)
         yml_data = YAML.dump(value)
-        with { |c| c.set(key, Zlib::Deflate.deflate(yml_data), timeout: options[:timeout]) }
+        with { |c|
+          c.set(key, Zlib::Deflate.deflate(yml_data))
+          c.expire(key, options[:timeout])
+        }
       end
 
       def with(&block)

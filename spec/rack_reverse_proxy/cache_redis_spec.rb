@@ -29,6 +29,11 @@ RSpec.describe RackReverseProxy::Cache::Redis do
       expect(subject.client.get("test_key")).to eq(Zlib::Deflate.deflate("---\n:test: 1\n:test2: 2\n"))
     end
 
+    it "should set a timeout to a key with informed timeout" do
+      subject.set("test_key", {test: 1, test2: 2})
+      expect(subject.client.ttl("test_key")).to eq(subject.options[:timeout])
+    end
+
   end
 
   describe "#gen_key" do
